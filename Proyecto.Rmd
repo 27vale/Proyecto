@@ -1,0 +1,39 @@
+---
+title: "Proyecto"
+author: "Valentina Rodríguez"
+date: "2025-04-14"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+datos_crudos <- read_excel("datos.xlsx")
+```
+
+```{r}
+datos_crudos1 <- datos_crudos[1:6,-c(1,2,4)]
+
+datos_crudos1 <- datos_crudos1 %>%
+ mutate(across(2:62, as.numeric))
+
+datoss <- datos_crudos1 %>%
+  pivot_longer(
+    cols = ends_with("]"),
+    names_to = "Año",
+    values_to = "Valor"
+  ) %>%
+  rename(Indicador = `Series Name`)
+
+datos <- datoss %>%
+  pivot_wider(
+    names_from = Indicador, 
+    values_from = Valor
+  )
+```
