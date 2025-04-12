@@ -36,4 +36,89 @@ datos <- datoss %>%
     names_from = Indicador, 
     values_from = Valor
   )
+
+datoss <- datoss %>%
+  mutate(Año = sub("\\[.*", "", Año))
+
+datoss$Año <- as.numeric(datoss$Año)
+
+datos <- datos %>%
+  mutate(Año = sub("\\[.*", "", Año))
+
+datos$Año <- as.numeric(datos$Año)
+```
+
+```{r}
+ggplot(datoss[1:183,], aes(x = Año, y = Valor, color = Indicador, group = Indicador)) +
+  geom_line(size = 1.2) +
+  scale_color_manual(values = c("#B1746F", "#849DB1", "#8DAB8E"),
+    labels = c("0–14 años", "15–64 años", "65+ años")) +
+  labs(
+    title = "Evolución de la estructura etaria en Uruguay (1990–2050)",
+    x = "Año",
+    y = "Porcentaje de la población",
+    color = "Grupo etario"
+  ) +
+  scale_x_continuous(breaks = seq(1990, 2050, by = 10)) +
+  theme_minimal(base_size = 14)
+```
+
+```{r}
+ggplot(datos, aes(x = Año, y = `Population, total`)) +
+  geom_line(color = "#B1746F", size = 1.2) +
+  labs(
+    title = "Evolución de la población total en Uruguay (1990–2050)",
+    x = "Año",
+    y = "Población total"
+  ) +
+  scale_x_continuous(breaks = seq(1990, 2050, by = 10)) +
+  theme_minimal(base_size = 14)
+
+```
+
+```{r}
+ggplot(datos[!is.na(datos$`Life expectancy at birth, total (years)`), ], aes(x = Año, y = `Life expectancy at birth, total (years)`)) +
+  geom_line(color = "#B1746F", size = 1.2) +
+  labs(
+    title = "Esperanza de vida al nacer en Uruguay (1990–2050)",
+    x = "Año",
+    y = "Años de vida esperados"
+  ) +
+  scale_x_continuous(breaks = seq(1990, 2050, by = 10)) +
+  theme_minimal(base_size = 14) + 
+  geom_vline(xintercept = 2022, linetype = "dashed", color = "#849DB1") #comienzo de proyecciones
+
+```
+
+```{r}
+ggplot(datos[!is.na(datos$`Fertility rate, total (births per woman)`), ], aes(x = Año, y = `Fertility rate, total (births per woman)`)) +
+  geom_line(color = "#B1746F", size = 1.2) +
+  labs(
+    title = "Tasa de fertilidad en Uruguay (1990–2050)",
+    x = "Año",
+    y = "Nacimientos por mujer"
+  ) +
+  scale_x_continuous(breaks = seq(1990, 2050, by = 10)) +
+  theme_minimal(base_size = 14) + 
+  geom_vline(xintercept = 2022, linetype = "dashed", color = "#849DB1") #comienzo de proyecciones
+
+```
+
+```{r}
+datos <- datos %>%
+  mutate(razon_dependencia = (`Population ages 0-14 (% of total population)` + `Population ages 65 and above (% of total population)`) / `Population ages 15-64 (% of total population)` * 100)
+
+```
+
+```{r}
+ggplot(datos, aes(x = Año, y = razon_dependencia)) +
+  geom_line(color = "#B1746F", size = 1.2) +
+  labs(
+    title = "Relación de dependencia en Uruguay (1990–2050)",
+    x = "Año",
+    y = "Porcentaje"
+  ) +
+  scale_x_continuous(breaks = seq(1990, 2050, by = 10)) +
+  theme_minimal(base_size = 14)
+
 ```
