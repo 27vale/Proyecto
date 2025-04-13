@@ -55,12 +55,18 @@ ggplot(datoss[1:183,], aes(x = Año, y = Valor, color = Indicador, group = Indic
     labels = c("0–14 años", "15–64 años", "65+ años")) +
   labs(
     title = "Evolución de la estructura etaria en Uruguay (1990–2050)",
+    subtitle = "La línea discontinua marca el comienzo de las proyecciones",
     x = "Año",
     y = "Porcentaje de la población",
     color = "Grupo etario"
   ) +
   scale_x_continuous(breaks = seq(1990, 2050, by = 10)) +
-  theme_minimal(base_size = 14)
+  theme_minimal(base_size = 14) + 
+  geom_vline(xintercept = 2022, linetype = "dashed", color = "#696969") +
+  theme(
+    plot.subtitle = element_text(size = 8))
+
+ggsave("estructura_etaria.png", width = 10, height = 6, dpi = 300, bg = "white")
 ```
 
 ```{r}
@@ -68,12 +74,17 @@ ggplot(datos, aes(x = Año, y = `Population, total`)) +
   geom_line(color = "#B1746F", size = 1.2) +
   labs(
     title = "Evolución de la población total en Uruguay (1990–2050)",
+    subtitle = "La línea discontinua marca el comienzo de las proyecciones",
     x = "Año",
     y = "Población total"
   ) +
   scale_x_continuous(breaks = seq(1990, 2050, by = 10)) +
-  theme_minimal(base_size = 14)
+  theme_minimal(base_size = 14) + 
+  geom_vline(xintercept = 2022, linetype = "dashed", color = "#696969") +
+  theme(
+    plot.subtitle = element_text(size = 8))
 
+ggsave("población_total.png", width = 10, height = 6, dpi = 300, bg = "white")
 ```
 
 ```{r}
@@ -81,13 +92,17 @@ ggplot(datos[!is.na(datos$`Life expectancy at birth, total (years)`), ], aes(x =
   geom_line(color = "#B1746F", size = 1.2) +
   labs(
     title = "Esperanza de vida al nacer en Uruguay (1990–2050)",
+    subtitle = "La línea discontinua marca el comienzo de las proyecciones",
     x = "Año",
     y = "Años de vida esperados"
   ) +
   scale_x_continuous(breaks = seq(1990, 2050, by = 10)) +
   theme_minimal(base_size = 14) + 
-  geom_vline(xintercept = 2022, linetype = "dashed", color = "#849DB1") #comienzo de proyecciones
+  geom_vline(xintercept = 2022, linetype = "dashed", color = "#696969") +
+  theme(
+    plot.subtitle = element_text(size = 8))
 
+ggsave("esperanza_de_vida.png", width = 10, height = 6, dpi = 300, bg = "white") 
 ```
 
 ```{r}
@@ -95,19 +110,22 @@ ggplot(datos[!is.na(datos$`Fertility rate, total (births per woman)`), ], aes(x 
   geom_line(color = "#B1746F", size = 1.2) +
   labs(
     title = "Tasa de fertilidad en Uruguay (1990–2050)",
+    subtitle = "La línea discontinua marca el comienzo de las proyecciones",
     x = "Año",
     y = "Nacimientos por mujer"
   ) +
   scale_x_continuous(breaks = seq(1990, 2050, by = 10)) +
   theme_minimal(base_size = 14) + 
-  geom_vline(xintercept = 2022, linetype = "dashed", color = "#849DB1") #comienzo de proyecciones
+  geom_vline(xintercept = 2022, linetype = "dashed", color = "#696969") +
+  theme(
+    plot.subtitle = element_text(size = 8))
 
+ggsave("tasa_de_fertilidad.png", width = 10, height = 6, dpi = 300, bg = "white")
 ```
 
 ```{r}
 datos <- datos %>%
   mutate(razon_dependencia = (`Population ages 0-14 (% of total population)` + `Population ages 65 and above (% of total population)`) / `Population ages 15-64 (% of total population)` * 100)
-
 ```
 
 ```{r}
@@ -115,10 +133,15 @@ ggplot(datos, aes(x = Año, y = razon_dependencia)) +
   geom_line(color = "#B1746F", size = 1.2) +
   labs(
     title = "Relación de dependencia en Uruguay (1990–2050)",
+    subtitle = "La línea discontinua marca el comienzo de las proyecciones",
     x = "Año",
     y = "Porcentaje"
   ) +
   scale_x_continuous(breaks = seq(1990, 2050, by = 10)) +
-  theme_minimal(base_size = 14)
+  theme_minimal(base_size = 14) + 
+  geom_vline(xintercept = 2022, linetype = "dashed", color = "#696969") +
+  theme(
+    plot.subtitle = element_text(size = 8))
 
+ggsave("relación_de_dependencia.png", width = 10, height = 6, dpi = 300, bg = "white")
 ```
