@@ -9,3 +9,10 @@ output: pdf_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
+```{r}
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+datos_crudos <- read_excel("datosReporte.xlsx")
+```
