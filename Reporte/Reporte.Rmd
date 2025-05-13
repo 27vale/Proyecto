@@ -48,6 +48,257 @@ datos2 <- datos2 %>%
 datos2$Año <- as.numeric(datos2$Año)
 ```
 
+
+
+
+
+```{r}
+
+ui <- navbarPage("Reporte Demográfico - Uruguay",
+                 
+  tabPanel("Introducción",
+           fluidPage(
+             titlePanel("Introducción"),
+             p("Este reporte analiza variables poblacionales de Uruguay en base a datos del Banco Mundial. 
+                Se abordan temas como envejecimiento, estructura etaria y dinámica poblacional.")
+           )
+  ),
+  
+  tabPanel("Estructura por edad",
+           fluidPage(
+             titlePanel("Distribución por grupo etario"),
+             sidebarLayout(
+               sidebarPanel(
+                 selectInput("Año", "Seleccioná un año:", 
+                             choices = c(1990, 2025, 2050), selected = 2025)
+               ),
+               mainPanel(
+                 sankeyNetworkOutput("sankey_plot") # Aquí pondremos el Sankey luego
+               )
+             )
+           )
+  ),
+  
+  tabPanel("Evolución temporal",
+           fluidPage(
+             titlePanel("Indicadores a lo largo del tiempo"),
+             sidebarLayout(
+               sidebarPanel(
+                 selectInput("variable", "Seleccioná una variable:",
+                             choices = c("Esperanza de vida", "Tasa de natalidad", "Migración neta"))
+               ),
+               mainPanel(
+                 plotOutput("line_plot")
+               )
+             )
+           )
+  ),
+  
+  tabPanel("Proporciones etarias",
+           fluidPage(
+             titlePanel("Cambios en proporciones etarias"),
+             plotOutput("area_invertida")
+           )
+  ),
+  
+  tabPanel("Conclusiones",
+           fluidPage(
+             titlePanel("Conclusiones"),
+             p("El análisis evidencia una clara tendencia al envejecimiento poblacional en Uruguay, con un aumento de la población de 65+ y una reducción de la población menor de 15."),
+             p("Esto genera desafíos importantes para el sistema previsional, lo que refuerza la importancia de este tipo de análisis en instituciones como las AFAP.")
+           )
+  )
+)
+
+server <- function(input, output) {
+  
+  datos_sankey <- datos1 %>%
+  filter(Indicador %in% c("Population ages 0-14 (% of total population)", "Population ages 15-64 (% of total population)", "Population ages 65 and above (% of total population)"), Año %in% c(1990, 2022, 2050)) %>%
+  rename(grupoEtario = Indicador)
+
+pop_sankey <- datos_sankey %>%
+  mutate(Año = as.character(Año),
+         grupoEtario = as.character(grupoEtario))
+
+# Crear nodos únicos
+nodos <- data.frame(name = unique(c(pop_sankey$Año, pop_sankey$grupoEtario)))
+
+
+  
+  # Renderizar gráfico Sankey
+  output$sankey_plot <- renderSankeyNetwork({
+    
+   # Crear enlaces con IDs
+enlaces <- pop_sankey %>%
+  mutate(source = match(Año, nodos$name) - 1,
+         target = match(grupoEtario, nodos$name) - 1) %>%
+  select(source, target, Valor)
+
+# Graficar
+sankeyNetwork(Links = enlaces,
+              Nodes = nodos,
+              Source = "source",
+              Target = "target",
+              Value = "Valor",
+              NodeID = "name",
+              fontSize = 12,
+              nodeWidth = 30)
+  })
+  
+}
+
+shinyApp(ui = ui, server = server)
+
+```
+
+```{r}
+
+ui <- navbarPage("Reporte Demográfico - Uruguay",
+                 
+  tabPanel("Introducción",
+           fluidPage(
+             titlePanel("Introducción"),
+             p("Este reporte analiza variables poblacionales de Uruguay en base a datos del Banco Mundial. 
+                Se abordan temas como envejecimiento, estructura etaria y dinámica poblacional.")
+           )
+  ),
+  
+  tabPanel("Estructura por edad",
+           fluidPage(
+             titlePanel("Distribución por grupo etario"),
+             sidebarLayout(
+               sidebarPanel(
+                 selectInput("Año", "Seleccioná un año intermedio:", 
+            choices = unique(datos1$Año[datos1$Año != 1990 & datos1$Año != 2050]),
+            selected = 2025)
+
+               ),
+               mainPanel(
+                 sankeyNetworkOutput("sankey_plot") # Aquí pondremos el Sankey luego
+               )
+             )
+           )
+  ),
+  
+  tabPanel("Evolución temporal",
+           fluidPage(
+             titlePanel("Indicadores a lo largo del tiempo"),
+             sidebarLayout(
+               sidebarPanel(
+                 selectInput("variable", "Seleccioná una variable:",
+                             choices = c("Esperanza de vida", "Tasa de natalidad", "Migración neta"))
+               ),
+               mainPanel(
+                 plotOutput("line_plot")
+               )
+             )
+           )
+  ),
+  
+  tabPanel("Proporciones etarias",
+           fluidPage(
+             titlePanel("Cambios en proporciones etarias"),
+             plotOutput("area_invertida")
+           )
+  ),
+  
+  tabPanel("Conclusiones",
+           fluidPage(
+             titlePanel("Conclusiones"),
+             p("El análisis evidencia una clara tendencia al envejecimiento poblacional en Uruguay, con un aumento de la población de 65+ y una reducción de la población menor de 15."),
+             p("Esto genera desafíos importantes para el sistema previsional, lo que refuerza la importancia de este tipo de análisis en instituciones como las AFAP.")
+           )
+  )
+)
+
+server <- function(input, output) {
+  
+  output$sankey_plot <- renderSankeyNetwork({
+    
+    # Años que queremos mostrar
+    años_seleccionados <- c(1990, input$Año, 2050)
+    
+    # Filtrar datos
+    datos_sankey <- datos1 %>%
+      filter(Indicador %in% c(
+        "Population ages 0-14 (% of total population)", 
+        "Population ages 15-64 (% of total population)", 
+        "Population ages 65 and above (% of total population)"
+      ),
+      Año %in% años_seleccionados) %>%
+      rename(grupoEtario = Indicador) %>%
+      mutate(Año = as.character(Año),
+             grupoEtario = as.character(grupoEtario))
+    
+   # Crear nodos en orden fijo
+orden_nodos <- c("1990", as.character(input$Año), "2050",
+                 "Population ages 0-14 (% of total population)",
+                 "Population ages 15-64 (% of total population)",
+                 "Population ages 65 and above (% of total population)")
+
+nodos <- data.frame(name = orden_nodos)
+
+# Crear enlaces con IDs correctos
+enlaces <- datos_sankey %>%
+  mutate(source = match(Año, nodos$name) - 1,
+         target = match(grupoEtario, nodos$name) - 1) %>%
+  select(source, target, Valor)
+
+    
+    # Crear gráfico
+    sankeyNetwork(Links = enlaces,
+                  Nodes = nodos,
+                  Source = "source",
+                  Target = "target",
+                  Value = "Valor",
+                  NodeID = "name",
+                  fontSize = 12,
+                  nodeWidth = 30)
+  })
+}
+
+
+shinyApp(ui = ui, server = server)
+
+```
+
+NO VA
+
+```{r}
+library(networkD3)
+
+output$sankey_plot <- renderSankeyNetwork({
+
+datos_sankey <- datos1 %>%
+  filter(Indicador %in% c("Population ages 0-14 (% of total population)", "Population ages 15-64 (% of total population)", "Population ages 65 and above (% of total population)"), Año %in% c(1990, 2022, 2050)) %>%
+  rename(grupoEtario = Indicador)
+
+pop_sankey <- datos_sankey %>%
+  mutate(Año = as.character(Año),
+         grupoEtario = as.character(grupoEtario))
+
+# Crear nodos únicos
+nodos <- data.frame(name = unique(c(pop_sankey$Año, pop_sankey$grupoEtario)))
+
+# Crear enlaces con IDs
+enlaces <- pop_sankey %>%
+  mutate(source = match(Año, nodos$name) - 1,
+         target = match(grupoEtario, nodos$name) - 1) %>%
+  select(source, target, Valor)
+
+# Graficar
+sankeyNetwork(Links = enlaces,
+              Nodes = nodos,
+              Source = "source",
+              Target = "target",
+              Value = "Valor",
+              NodeID = "name",
+              fontSize = 12,
+              nodeWidth = 30)
+
+})
+```
+
 ```{r}
 library(networkD3)
 
@@ -149,141 +400,3 @@ server <- function(input, output) {
 shinyApp(ui = ui, server = server)
 
 ```
-
-```{r}
-library(networkD3)
-
-output$sankey_plot <- renderSankeyNetwork({
-
-datos_sankey <- datos1 %>%
-  filter(Indicador %in% c("Population ages 0-14 (% of total population)", "Population ages 15-64 (% of total population)", "Population ages 65 and above (% of total population)"), Año %in% c(1990, 2022, 2050)) %>%
-  rename(grupoEtario = Indicador)
-
-pop_sankey <- datos_sankey %>%
-  mutate(Año = as.character(Año),
-         grupoEtario = as.character(grupoEtario))
-
-# Crear nodos únicos
-nodos <- data.frame(name = unique(c(pop_sankey$Año, pop_sankey$grupoEtario)))
-
-# Crear enlaces con IDs
-enlaces <- pop_sankey %>%
-  mutate(source = match(Año, nodos$name) - 1,
-         target = match(grupoEtario, nodos$name) - 1) %>%
-  select(source, target, Valor)
-
-# Graficar
-sankeyNetwork(Links = enlaces,
-              Nodes = nodos,
-              Source = "source",
-              Target = "target",
-              Value = "Valor",
-              NodeID = "name",
-              fontSize = 12,
-              nodeWidth = 30)
-
-})
-```
-
-```{r}
-
-# Datos de ejemplo
-# tus_datos <- read.csv("path_a_tus_datos.csv")
-
-ui <- navbarPage("Reporte Demográfico - Uruguay",
-                 
-  tabPanel("Introducción",
-           fluidPage(
-             titlePanel("Introducción"),
-             p("Este reporte analiza variables poblacionales de Uruguay en base a datos del Banco Mundial. 
-                Se abordan temas como envejecimiento, estructura etaria y dinámica poblacional.")
-           )
-  ),
-  
-  tabPanel("Estructura por edad",
-           fluidPage(
-             titlePanel("Distribución por grupo etario"),
-             sidebarLayout(
-               sidebarPanel(
-                 selectInput("year_sankey", "Seleccioná un año:", 
-                             choices = c(1990, 2025, 2050), selected = 2025)
-               ),
-               mainPanel(
-                 sankeyNetworkOutput("sankey_plot") # Aquí pondremos el Sankey luego
-               )
-             )
-           )
-  ),
-  
-  tabPanel("Evolución temporal",
-           fluidPage(
-             titlePanel("Indicadores a lo largo del tiempo"),
-             sidebarLayout(
-               sidebarPanel(
-                 selectInput("variable", "Seleccioná una variable:",
-                             choices = c("Esperanza de vida", "Tasa de natalidad", "Migración neta"))
-               ),
-               mainPanel(
-                 plotOutput("line_plot")
-               )
-             )
-           )
-  ),
-  
-  tabPanel("Proporciones etarias",
-           fluidPage(
-             titlePanel("Cambios en proporciones etarias"),
-             plotOutput("area_invertida")
-           )
-  ),
-  
-  tabPanel("Conclusiones",
-           fluidPage(
-             titlePanel("Conclusiones"),
-             p("El análisis evidencia una clara tendencia al envejecimiento poblacional en Uruguay, con un aumento de la población de 65+ y una reducción de la población menor de 15."),
-             p("Esto genera desafíos importantes para el sistema previsional, lo que refuerza la importancia de este tipo de análisis en instituciones como las AFAP.")
-           )
-  )
-)
-
-server <- function(input, output) {
-  
-  datos_sankey <- datos1 %>%
-  filter(Indicador %in% c("Population ages 0-14 (% of total population)", "Population ages 15-64 (% of total population)", "Population ages 65 and above (% of total population)"), Año %in% c(1990, 2022, 2050)) %>%
-  rename(grupoEtario = Indicador)
-
-pop_sankey <- datos_sankey %>%
-  mutate(Año = as.character(Año),
-         grupoEtario = as.character(grupoEtario))
-
-# Crear nodos únicos
-nodos <- data.frame(name = unique(c(pop_sankey$Año, pop_sankey$grupoEtario)))
-
-
-  
-  # Renderizar gráfico Sankey
-  output$sankey_plot <- renderSankeyNetwork({
-    
-   # Crear enlaces con IDs
-enlaces <- pop_sankey %>%
-  mutate(source = match(Año, nodos$name) - 1,
-         target = match(grupoEtario, nodos$name) - 1) %>%
-  select(source, target, Valor)
-
-# Graficar
-sankeyNetwork(Links = enlaces,
-              Nodes = nodos,
-              Source = "source",
-              Target = "target",
-              Value = "Valor",
-              NodeID = "name",
-              fontSize = 12,
-              nodeWidth = 30)
-  })
-  
-}
-
-shinyApp(ui = ui, server = server)
-
-```
-
