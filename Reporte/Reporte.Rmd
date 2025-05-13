@@ -14,6 +14,8 @@ library(readxl)
 library(dplyr)
 library(tidyr)
 library(ggplot2)
+library(networkD3)
+library(shiny)
 datos_crudos <- read_excel("datosReporte.xlsx")
 ```
 
@@ -46,6 +48,13 @@ datos2 <- datos2 %>%
   mutate(Año = sub("\\[.*", "", Año))
 
 datos2$Año <- as.numeric(datos2$Año)
+
+datos1$Indicador <- recode(datos1$Indicador,
+  "Population ages 0-14 (% of total population)" = "0-14 años",
+  "Population ages 15-64 (% of total population)" = "15-64 años",
+  "Population ages 65 and above (% of total population)" = "65+ años"
+)
+
 ```
 
 
@@ -112,16 +121,19 @@ ui <- navbarPage("Reporte Demográfico - Uruguay",
 
 server <- function(input, output) {
   
-  datos_sankey <- datos1 %>%
-  filter(Indicador %in% c("Population ages 0-14 (% of total population)", "Population ages 15-64 (% of total population)", "Population ages 65 and above (% of total population)"), Año %in% c(1990, 2022, 2050)) %>%
-  rename(grupoEtario = Indicador)
+  # Filtrar los datos para el gráfico de Sankey
+datos_sankey <- datos1 %>%
+  filter(!is.na(Indicador), Año %in% años_seleccionados) %>%
+  mutate(Año = as.character(Año),
+         Indicadot = as.character(Indicador))
+
 
 pop_sankey <- datos_sankey %>%
   mutate(Año = as.character(Año),
-         grupoEtario = as.character(grupoEtario))
+         Indicador = as.character(Indicador))
 
 # Crear nodos únicos
-nodos <- data.frame(name = unique(c(pop_sankey$Año, pop_sankey$grupoEtario)))
+nodos <- data.frame(name = unique(c(pop_sankey$Año, pop_sankey$Indicador)))
 
 
   
@@ -129,10 +141,12 @@ nodos <- data.frame(name = unique(c(pop_sankey$Año, pop_sankey$grupoEtario)))
   output$sankey_plot <- renderSankeyNetwork({
     
    # Crear enlaces con IDs
-enlaces <- pop_sankey %>%
+# Crear enlaces con IDs correctos para el gráfico Sankey
+enlaces <- datos_sankey %>% 
   mutate(source = match(Año, nodos$name) - 1,
-         target = match(grupoEtario, nodos$name) - 1) %>%
+         target = match(Indicador, nodos$name) - 1) %>%
   select(source, target, Valor)
+
 
 # Graficar
 sankeyNetwork(Links = enlaces,
@@ -151,6 +165,8 @@ shinyApp(ui = ui, server = server)
 
 ```
 
+
+usado:
 ```{r}
 
 ui <- navbarPage("Reporte Demográfico - Uruguay",
@@ -170,7 +186,7 @@ ui <- navbarPage("Reporte Demográfico - Uruguay",
                sidebarPanel(
                  selectInput("Año", "Seleccioná un año intermedio:", 
             choices = unique(datos1$Año[datos1$Año != 1990 & datos1$Año != 2050]),
-            selected = 2025)
+            selected = 2022)
 
                ),
                mainPanel(
@@ -215,45 +231,61 @@ server <- function(input, output) {
   
   output$sankey_plot <- renderSankeyNetwork({
     
-    # Años que queremos mostrar
-    años_seleccionados <- c(1990, input$Año, 2050)
+  # Años que queremos mostrar
+años_seleccionados <- c(1990, input$Año, 2050)
     
     # Filtrar datos
     datos_sankey <- datos1 %>%
-      filter(Indicador %in% c(
-        "Population ages 0-14 (% of total population)", 
-        "Population ages 15-64 (% of total population)", 
-        "Population ages 65 and above (% of total population)"
-      ),
-      Año %in% años_seleccionados) %>%
+      filter(Indicador %in% c("0-14 años", "15-64 años", "65+ años"),
+             Año %in% años_seleccionados) %>%
       rename(grupoEtario = Indicador) %>%
       mutate(Año = as.character(Año),
              grupoEtario = as.character(grupoEtario))
     
-   # Crear nodos en orden fijo
-orden_nodos <- c("1990", as.character(input$Año), "2050",
-                 "Population ages 0-14 (% of total population)",
-                 "Population ages 15-64 (% of total population)",
-                 "Population ages 65 and above (% of total population)")
-
-nodos <- data.frame(name = orden_nodos)
-
-# Crear enlaces con IDs correctos
-enlaces <- datos_sankey %>%
-  mutate(source = match(Año, nodos$name) - 1,
-         target = match(grupoEtario, nodos$name) - 1) %>%
-  select(source, target, Valor)
+    # Asegurarnos de que los grupos etarios están ordenados correctamente
+    datos_sankey$grupoEtario <- factor(datos_sankey$grupoEtario, 
+                                       levels = c("0-14 años", "15-64 años", "65+ años"))
+    
+    
+nodos <- data.frame(name = c(as.character(años_seleccionados), 
+                             "0-14 años", "15-64 años", "65+ años"))
 
     
-    # Crear gráfico
-    sankeyNetwork(Links = enlaces,
-                  Nodes = nodos,
-                  Source = "source",
-                  Target = "target",
-                  Value = "Valor",
-                  NodeID = "name",
-                  fontSize = 12,
-                  nodeWidth = 30)
+    # Crear enlaces
+    enlaces <- datos_sankey %>%
+      mutate(source = match(Año, nodos$name) - 1,
+             target = match(grupoEtario, nodos$name) - 1) %>%
+      select(source, target, Valor)
+    
+    # Crear gráfico Sankey
+  sn <-  sankeyNetwork(Links = enlaces,
+              Nodes = nodos,
+              Source = "source",
+              Target = "target",
+              Value = "Valor",
+              NodeID = "name",
+              fontSize = 12,
+              nodeWidth = 30,
+              colourScale = JS("d3.scaleOrdinal()
+                      .domain(['0-14', '15-64', '65+', '1990', '2025', '2050'])
+                      .range(['#E7969C', '#E7969C', '#E7969C', '#E7969C', '#E7969C', '#E7969C'])"),
+              iterations = 0)  # ← Esto congela el orden
+
+htmlwidgets::onRender(sn, '
+  function(el, x) {
+    // Cambiar tooltip de los links (líneas)
+    d3.select(el).selectAll(".link").select("title")
+      .text(function(d) {
+        return d.value.toFixed(1) + "%";
+      });
+
+    // Ocultar tooltip de los nodos (rectángulos)
+    d3.select(el).selectAll(".node").select("title").text("");
+  }
+')
+
+
+
   })
 }
 
