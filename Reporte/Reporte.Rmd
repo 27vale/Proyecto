@@ -14,8 +14,10 @@ library(readxl)
 library(dplyr)
 library(tidyr)
 library(ggplot2)
+library(scales)
 library(networkD3)
 library(shiny)
+library(plotly)
 datos_crudos <- read_excel("datosReporte.xlsx")
 ```
 
@@ -52,116 +54,26 @@ datos2$Año <- as.numeric(datos2$Año)
 datos1$Indicador <- recode(datos1$Indicador,
   "Population ages 0-14 (% of total population)" = "0-14 años",
   "Population ages 15-64 (% of total population)" = "15-64 años",
-  "Population ages 65 and above (% of total population)" = "65+ años"
+  "Population ages 65 and above (% of total population)" = "65+ años",
+  "Birth rate, crude (per 1,000 people)" = "Tasa de natalidad (cada 1000)",
+  "Death rate, crude (per 1,000 people)" = "Tasa de mortalidad (cada 1000)",
+  "Fertility rate, total (births per woman)" = "Tasa de fecundidad",
+  "Net migration" = "Migración neta"
 )
 
-```
-
-
-
-
-
-```{r}
-
-ui <- navbarPage("Reporte Demográfico - Uruguay",
-                 
-  tabPanel("Introducción",
-           fluidPage(
-             titlePanel("Introducción"),
-             p("Este reporte analiza variables poblacionales de Uruguay en base a datos del Banco Mundial. 
-                Se abordan temas como envejecimiento, estructura etaria y dinámica poblacional.")
-           )
-  ),
-  
-  tabPanel("Estructura por edad",
-           fluidPage(
-             titlePanel("Distribución por grupo etario"),
-             sidebarLayout(
-               sidebarPanel(
-                 selectInput("Año", "Seleccioná un año:", 
-                             choices = c(1990, 2025, 2050), selected = 2025)
-               ),
-               mainPanel(
-                 sankeyNetworkOutput("sankey_plot") # Aquí pondremos el Sankey luego
-               )
-             )
-           )
-  ),
-  
-  tabPanel("Evolución temporal",
-           fluidPage(
-             titlePanel("Indicadores a lo largo del tiempo"),
-             sidebarLayout(
-               sidebarPanel(
-                 selectInput("variable", "Seleccioná una variable:",
-                             choices = c("Esperanza de vida", "Tasa de natalidad", "Migración neta"))
-               ),
-               mainPanel(
-                 plotOutput("line_plot")
-               )
-             )
-           )
-  ),
-  
-  tabPanel("Proporciones etarias",
-           fluidPage(
-             titlePanel("Cambios en proporciones etarias"),
-             plotOutput("area_invertida")
-           )
-  ),
-  
-  tabPanel("Conclusiones",
-           fluidPage(
-             titlePanel("Conclusiones"),
-             p("El análisis evidencia una clara tendencia al envejecimiento poblacional en Uruguay, con un aumento de la población de 65+ y una reducción de la población menor de 15."),
-             p("Esto genera desafíos importantes para el sistema previsional, lo que refuerza la importancia de este tipo de análisis en instituciones como las AFAP.")
-           )
-  )
+indicadores_interes <- c(
+  "Tasa de fecundidad",
+  "Tasa de mortalidad (cada 1000)",
+  "Tasa de natalidad (cada 1000)",
+  "Migración neta"
 )
 
-server <- function(input, output) {
-  
-  # Filtrar los datos para el gráfico de Sankey
-datos_sankey <- datos1 %>%
-  filter(!is.na(Indicador), Año %in% años_seleccionados) %>%
-  mutate(Año = as.character(Año),
-         Indicadot = as.character(Indicador))
+datos_linea <- datos1 %>%
+  filter(Indicador %in% indicadores_interes)
 
+poblacion <- datos2[,c(1,13)]
 
-pop_sankey <- datos_sankey %>%
-  mutate(Año = as.character(Año),
-         Indicador = as.character(Indicador))
-
-# Crear nodos únicos
-nodos <- data.frame(name = unique(c(pop_sankey$Año, pop_sankey$Indicador)))
-
-
-  
-  # Renderizar gráfico Sankey
-  output$sankey_plot <- renderSankeyNetwork({
-    
-   # Crear enlaces con IDs
-# Crear enlaces con IDs correctos para el gráfico Sankey
-enlaces <- datos_sankey %>% 
-  mutate(source = match(Año, nodos$name) - 1,
-         target = match(Indicador, nodos$name) - 1) %>%
-  select(source, target, Valor)
-
-
-# Graficar
-sankeyNetwork(Links = enlaces,
-              Nodes = nodos,
-              Source = "source",
-              Target = "target",
-              Value = "Valor",
-              NodeID = "name",
-              fontSize = 12,
-              nodeWidth = 30)
-  })
-  
-}
-
-shinyApp(ui = ui, server = server)
+poblacion$tasa_crecimiento <- c(NA, diff(poblacion$`Population, total`)/poblacion$`Population, total`[-nrow(poblacion)])
 
 ```
 
@@ -196,27 +108,32 @@ ui <- navbarPage("Reporte Demográfico - Uruguay",
            )
   ),
   
-  tabPanel("Evolución temporal",
+  tabPanel("Poblacion",
            fluidPage(
-             titlePanel("Indicadores a lo largo del tiempo"),
-             sidebarLayout(
-               sidebarPanel(
-                 selectInput("variable", "Seleccioná una variable:",
-                             choices = c("Esperanza de vida", "Tasa de natalidad", "Migración neta"))
-               ),
-               mainPanel(
-                 plotOutput("line_plot")
+                 plotlyOutput("grafico_plotly")
                )
              )
+           ,
+  
+  tabPanel("Pob",
+           fluidPage(
+             plotOutput("grafico_poblacion", height = "600px")
            )
   ),
   
-  tabPanel("Proporciones etarias",
-           fluidPage(
-             titlePanel("Cambios en proporciones etarias"),
-             plotOutput("area_invertida")
-           )
-  ),
+  tabPanel("Indicadores demográficos",
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("indicador_select", "Seleccionar indicador:",
+                  choices = unique(datos_linea$Indicador),
+                  selected = "Birth rate, crude (per 1,000 people)")
+    ),
+    mainPanel(
+      plotOutput("grafico_linea")
+    )
+  )
+),
+
   
   tabPanel("Conclusiones",
            fluidPage(
@@ -287,6 +204,119 @@ htmlwidgets::onRender(sn, '
 
 
   })
+  
+  
+  output$grafico_poblacion <- renderPlot({
+    
+    max_poblacion <- max(poblacion$`Population, total`, na.rm = TRUE)
+max_tasa <- max(abs(poblacion$tasa_crecimiento), na.rm = TRUE)
+factor_escala <- max_poblacion / (max_tasa * 1.2) # 1.2 da un poco de margen
+
+ggplot(poblacion, aes(x = Año)) +
+  # Área para población
+  geom_area(aes(y = poblacion$`Population, total`, fill = "Población"), 
+            alpha = 0.5, position = "identity") +
+  
+  # Línea y puntos para tasa (asegurando visibilidad)
+  geom_line(aes(y = poblacion$tasa_crecimiento * factor_escala, 
+                color = "Tasa de crecimiento"), 
+            linewidth = 1.2, na.rm = TRUE) +
+  
+  #geom_point(aes(y = poblacion$tasa_crecimiento * factor_escala,
+   #             color = "Tasa de crecimiento"),
+    #        size = 3, na.rm = TRUE) +
+  
+  # Ejes duales
+  scale_y_continuous(
+    name = "Población total",
+    labels = label_number(),
+    sec.axis = sec_axis(~ . / factor_escala,
+                        name = "Tasa de crecimiento",
+                        labels = percent_format(accuracy = 0.1))
+  ) +
+  
+  # Escalas de color
+  scale_fill_manual(values = c("Población" = "#3A5FCD")) +
+  scale_color_manual(values = c("Tasa de crecimiento" = "#FF6347")) +
+  
+  # Estilo y temas
+  labs(title = "Evolución de la Población y Tasa de Crecimiento",
+       x = "Año") +
+  
+  theme_minimal() +
+  theme(
+    legend.position = "top",
+    legend.title = element_blank(),
+    plot.title = element_text(hjust = 0.5, face = "bold")
+  )
+    
+  })
+  
+  output$grafico_plotly <- renderPlotly({
+  
+  datosplotly <- datos1 %>%
+  mutate(
+    grupo = case_when(
+      grepl("Life expectancy at birth, total \\(years\\)", Indicador) ~ "Total",
+      grepl("Life expectancy at birth, male \\(years\\)", Indicador) ~ "Hombre",
+      grepl("Life expectancy at birth, female \\(years\\)", Indicador) ~ "Mujer",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(grupo))
+
+# Determinar el máximo para el eje Y una sola vez
+rango_min <- floor(min(datosplotly$Valor, na.rm = TRUE) - 2)
+rango_max <- ceiling(max(datosplotly$Valor, na.rm = TRUE) + 2)
+
+# Crear el gráfico animado
+grafico <- plot_ly(
+  data = datosplotly,
+  x = ~grupo,
+  y = ~Valor,
+  color = ~grupo,
+  colors = c("Total" = "#1f77b4", "Hombre" = "#ff7f0e", "Mujer" = "#d62728"),
+  type = "bar",
+  frame = ~Año,
+  text = ~paste0("Año: ", Año,
+                 "<br>Grupo: ", grupo,
+                 "<br>Esperanza de vida: ", round(Valor, 1), " años"),
+  hoverinfo = "text"
+) %>%
+  layout(
+    title = list(text = "<b>Evolución de la Esperanza de Vida</b>", 
+                 x = 0.05, y = 0.95),
+    xaxis = list(title = ""),
+    yaxis = list(title = "Años de vida esperados", range = c(rango_min, rango_max))
+,
+    font = list(family = "Arial"),
+    margin = list(l = 50, r = 50, b = 80, t = 80)
+  ) %>%
+  animation_opts(
+    frame = 800,
+    transition = 400,
+    easing = "linear"
+  ) %>%
+  animation_slider(currentvalue = list(prefix = "Año: ", font = list(size = 14))) %>%
+  animation_button(label = "Play")
+
+grafico
+
+})
+  
+  output$grafico_linea <- renderPlot({
+    datos_filtrados <- datos_linea %>%
+    filter(Indicador == input$indicador_select)
+
+  ggplot(datos_filtrados, aes(x = Año, y = Valor)) +
+  geom_point(color = "#E7969C") +  # muestra los puntos, incluso los NA (como huecos)
+  labs(title = input$indicador_select,
+       x = "Año", y = "Valor") +
+  theme_minimal()
+
+    
+  })
+  
 }
 
 
@@ -297,188 +327,107 @@ shinyApp(ui = ui, server = server)
 ```{r}
 poblacion <- datos2[,c(1,13)]
 
-poblacion <- poblacion %>%
-  arrange(Año) %>%
-  mutate(tasa_crecimiento = (`Population, total` - lag(`Population, total`)) / lag(`Population, total`) * 100)
+poblacion$tasa_crecimiento <- c(NA, diff(poblacion$`Population, total`)/poblacion$`Population, total`[-nrow(poblacion)])
 
 ```
 
 ```{r}
+
+
+# Primero calculamos el factor de escalado
+max_poblacion <- max(poblacion$`Population, total`, na.rm = TRUE)
+max_tasa <- max(abs(poblacion$tasa_crecimiento), na.rm = TRUE)
+factor_escala <- max_poblacion / (max_tasa * 1.2) # 1.2 da un poco de margen
+
 ggplot(poblacion, aes(x = Año)) +
-  geom_area(aes(y = poblacion$`Population, total`), fill = "#99c2ff", alpha = 0.6) +
-  geom_line(aes(y = poblacion$tasa_crecimiento * max(poblacion$`Population, total`, na.rm = TRUE) / max(poblacion$tasa_crecimiento, na.rm = TRUE)), 
-            color = "red", size = 1.2) +
+  # Área para población
+  geom_area(aes(y = poblacion$`Population, total`, fill = "Población"), 
+            alpha = 0.5, position = "identity") +
+  
+  # Línea y puntos para tasa (asegurando visibilidad)
+  geom_line(aes(y = poblacion$tasa_crecimiento * factor_escala, 
+                color = "Tasa de crecimiento"), 
+            linewidth = 1.2, na.rm = TRUE) +
+  
+  #geom_point(aes(y = poblacion$tasa_crecimiento * factor_escala,
+   #             color = "Tasa de crecimiento"),
+    #        size = 3, na.rm = TRUE) +
+  
+  # Ejes duales
   scale_y_continuous(
     name = "Población total",
-    sec.axis = sec_axis(~ . * max(poblacion$tasa_crecimiento, na.rm = TRUE) / max(poblacion$`Population, total`, na.rm = TRUE),
-                        name = "Tasa de crecimiento (%)")
+    labels = label_number(),
+    sec.axis = sec_axis(~ . / factor_escala,
+                        name = "Tasa de crecimiento",
+                        labels = percent_format(accuracy = 0.1))
   ) +
+  
+  # Escalas de color
+  scale_fill_manual(values = c("Población" = "#3A5FCD")) +
+  scale_color_manual(values = c("Tasa de crecimiento" = "#FF6347")) +
+  
+  # Estilo y temas
+  labs(title = "Evolución de la Población y Tasa de Crecimiento",
+       x = "Año") +
+  
   theme_minimal() +
-  labs(title = "Población total y tasa de crecimiento anual",
-       x = "Año")
-
-```
-
-```{r}
-# Escalar la tasa de crecimiento para que se alinee visualmente con la población
-escala <- max(datos2$Poblacion_total, na.rm = TRUE) / max(datos2$tasa_crecimiento, na.rm = TRUE)
-
-ggplot(poblacion, aes(x = Año)) +
-  geom_area(aes(y = Poblacion_total), fill = "#CCE5FF", alpha = 0.7) +
-  geom_line(aes(y = tasa_crecimiento * escala), color = "#FF5733", size = 1.2) +
-  scale_y_continuous(
-    name = "Población total",
-    sec.axis = sec_axis(~ . / escala, name = "Tasa de crecimiento (%)")
-  ) +
-  theme_minimal(base_size = 14) +
-  labs(
-    title = "Evolución de la población y tasa de crecimiento anual en Uruguay",
-    x = "Año"
-  ) +
   theme(
-    axis.title.y.left = element_text(color = "#3366CC"),
-    axis.title.y.right = element_text(color = "#FF5733"),
-    plot.title = element_text(face = "bold", hjust = 0.5)
+    legend.position = "top",
+    legend.title = element_blank(),
+    plot.title = element_text(hjust = 0.5, face = "bold")
   )
-
-```
-
-
-NO VA
-
-```{r}
-library(networkD3)
-
-output$sankey_plot <- renderSankeyNetwork({
-
-datos_sankey <- datos1 %>%
-  filter(Indicador %in% c("Population ages 0-14 (% of total population)", "Population ages 15-64 (% of total population)", "Population ages 65 and above (% of total population)"), Año %in% c(1990, 2022, 2050)) %>%
-  rename(grupoEtario = Indicador)
-
-pop_sankey <- datos_sankey %>%
-  mutate(Año = as.character(Año),
-         grupoEtario = as.character(grupoEtario))
-
-# Crear nodos únicos
-nodos <- data.frame(name = unique(c(pop_sankey$Año, pop_sankey$grupoEtario)))
-
-# Crear enlaces con IDs
-enlaces <- pop_sankey %>%
-  mutate(source = match(Año, nodos$name) - 1,
-         target = match(grupoEtario, nodos$name) - 1) %>%
-  select(source, target, Valor)
-
-# Graficar
-sankeyNetwork(Links = enlaces,
-              Nodes = nodos,
-              Source = "source",
-              Target = "target",
-              Value = "Valor",
-              NodeID = "name",
-              fontSize = 12,
-              nodeWidth = 30)
-
-})
 ```
 
 ```{r}
-library(networkD3)
 
-output$sankey_plot <- renderSankeyNetwork({
+# Reestructuración de los datos
+datosplotly <- datos1 %>%
+  mutate(
+    grupo = case_when(
+      grepl("Life expectancy at birth, total \\(years\\)", Indicador) ~ "Total",
+      grepl("Life expectancy at birth, male \\(years\\)", Indicador) ~ "Hombre",
+      grepl("Life expectancy at birth, female \\(years\\)", Indicador) ~ "Mujer",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  filter(!is.na(grupo))
 
-datos_sankey <- datos1 %>%
-  filter(Indicador %in% c("Population ages 0-14 (% of total population)", "Population ages 15-64 (% of total population)", "Population ages 65 and above (% of total population)"), Año %in% c(1990, 2022, 2050)) %>%
-  rename(grupoEtario = Indicador)
+# Determinar el máximo para el eje Y una sola vez
+rango_min <- floor(min(datosplotly$Valor, na.rm = TRUE) - 2)
+rango_max <- ceiling(max(datosplotly$Valor, na.rm = TRUE) + 2)
 
-pop_sankey <- datos_sankey %>%
-  mutate(Año = as.character(Año),
-         grupoEtario = as.character(grupoEtario))
+# Crear el gráfico animado
+grafico <- plot_ly(
+  data = datosplotly,
+  x = ~grupo,
+  y = ~Valor,
+  color = ~grupo,
+  colors = c("Total" = "#1f77b4", "Hombre" = "#ff7f0e", "Mujer" = "#d62728"),
+  type = "bar",
+  frame = ~Año,
+  text = ~paste0("Año: ", Año,
+                 "<br>Grupo: ", grupo,
+                 "<br>Esperanza de vida: ", round(Valor, 1), " años"),
+  hoverinfo = "text"
+) %>%
+  layout(
+    title = list(text = "<b>Evolución de la Esperanza de Vida</b>", 
+                 x = 0.05, y = 0.95),
+    xaxis = list(title = ""),
+    yaxis = list(title = "Años de vida esperados", range = c(rango_min, rango_max))
+,
+    font = list(family = "Arial"),
+    margin = list(l = 50, r = 50, b = 80, t = 80)
+  ) %>%
+  animation_opts(
+    frame = 800,
+    transition = 400,
+    easing = "linear"
+  ) %>%
+  animation_slider(currentvalue = list(prefix = "Año: ", font = list(size = 14))) %>%
+  animation_button(label = "Play")
 
-# Crear nodos únicos
-nodos <- data.frame(name = unique(c(pop_sankey$Año, pop_sankey$grupoEtario)))
-
-# Crear enlaces con IDs
-enlaces <- pop_sankey %>%
-  mutate(source = match(Año, nodos$name) - 1,
-         target = match(grupoEtario, nodos$name) - 1) %>%
-  select(source, target, Valor)
-
-# Graficar
-sankeyNetwork(Links = enlaces,
-              Nodes = nodos,
-              Source = "source",
-              Target = "target",
-              Value = "Valor",
-              NodeID = "name",
-              fontSize = 12,
-              nodeWidth = 30)
-
-})
-```
-
-```{r}
-library(shiny)
-
-ui <- navbarPage("Reporte Demográfico - Uruguay",
-                 
-  tabPanel("Introducción",
-           fluidPage(
-             titlePanel("Introducción"),
-             p("Este reporte analiza variables poblacionales de Uruguay en base a datos del Banco Mundial. 
-                Se abordan temas como envejecimiento, estructura etaria y dinámica poblacional.")
-           )
-  ),
-  
-  tabPanel("Estructura por edad",
-           fluidPage(
-             titlePanel("Distribución por grupo etario"),
-             sidebarLayout(
-               sidebarPanel(
-                 selectInput("year_sankey", "Seleccioná un año:", 
-                             choices = c(1990, 2025, 2050), selected = 2025)
-               ),
-               mainPanel(
-                 plotOutput("sankey_plot") # Aquí pondremos el Sankey luego
-               )
-             )
-           )
-  ),
-  
-  tabPanel("Evolución temporal",
-           fluidPage(
-             titlePanel("Indicadores a lo largo del tiempo"),
-             sidebarLayout(
-               sidebarPanel(
-                 selectInput("variable", "Seleccioná una variable:",
-                             choices = c("Esperanza de vida", "Tasa de natalidad", "Migración neta"))
-               ),
-               mainPanel(
-                 plotOutput("line_plot")
-               )
-             )
-           )
-  ),
-  
-  tabPanel("Proporciones etarias",
-           fluidPage(
-             titlePanel("Cambios en proporciones etarias"),
-             plotOutput("area_invertida")
-           )
-  ),
-  
-  tabPanel("Conclusiones",
-           fluidPage(
-             titlePanel("Conclusiones"),
-             p("El análisis evidencia una clara tendencia al envejecimiento poblacional en Uruguay, con un aumento de la población de 65+ y una reducción de la población menor de 15."),
-             p("Esto genera desafíos importantes para el sistema previsional, lo que refuerza la importancia de este tipo de análisis en instituciones como las AFAP.")
-           )
-  )
-)
-
-server <- function(input, output) {
-  # Gráficos se irán agregando luego
-}
-
-shinyApp(ui = ui, server = server)
+grafico
 
 ```
+
