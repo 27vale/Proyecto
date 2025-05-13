@@ -294,6 +294,56 @@ shinyApp(ui = ui, server = server)
 
 ```
 
+```{r}
+poblacion <- datos2[,c(1,13)]
+
+poblacion <- poblacion %>%
+  arrange(Año) %>%
+  mutate(tasa_crecimiento = (`Population, total` - lag(`Population, total`)) / lag(`Population, total`) * 100)
+
+```
+
+```{r}
+ggplot(poblacion, aes(x = Año)) +
+  geom_area(aes(y = poblacion$`Population, total`), fill = "#99c2ff", alpha = 0.6) +
+  geom_line(aes(y = poblacion$tasa_crecimiento * max(poblacion$`Population, total`, na.rm = TRUE) / max(poblacion$tasa_crecimiento, na.rm = TRUE)), 
+            color = "red", size = 1.2) +
+  scale_y_continuous(
+    name = "Población total",
+    sec.axis = sec_axis(~ . * max(poblacion$tasa_crecimiento, na.rm = TRUE) / max(poblacion$`Population, total`, na.rm = TRUE),
+                        name = "Tasa de crecimiento (%)")
+  ) +
+  theme_minimal() +
+  labs(title = "Población total y tasa de crecimiento anual",
+       x = "Año")
+
+```
+
+```{r}
+# Escalar la tasa de crecimiento para que se alinee visualmente con la población
+escala <- max(datos2$Poblacion_total, na.rm = TRUE) / max(datos2$tasa_crecimiento, na.rm = TRUE)
+
+ggplot(poblacion, aes(x = Año)) +
+  geom_area(aes(y = Poblacion_total), fill = "#CCE5FF", alpha = 0.7) +
+  geom_line(aes(y = tasa_crecimiento * escala), color = "#FF5733", size = 1.2) +
+  scale_y_continuous(
+    name = "Población total",
+    sec.axis = sec_axis(~ . / escala, name = "Tasa de crecimiento (%)")
+  ) +
+  theme_minimal(base_size = 14) +
+  labs(
+    title = "Evolución de la población y tasa de crecimiento anual en Uruguay",
+    x = "Año"
+  ) +
+  theme(
+    axis.title.y.left = element_text(color = "#3366CC"),
+    axis.title.y.right = element_text(color = "#FF5733"),
+    plot.title = element_text(face = "bold", hjust = 0.5)
+  )
+
+```
+
+
 NO VA
 
 ```{r}
